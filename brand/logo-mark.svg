@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>Utaloom Woven U</title>
+  <path d="M64 64v72c0 38 26 64 64 64s64-26 64-64V64" stroke="#f47757" stroke-width="32" stroke-linecap="round"/>
+  <path d="M104 64v68c0 15 9 24 24 24s24-9 24-24V92" stroke="#ffc6a3" stroke-width="16" stroke-linecap="round"/>
+</svg>
