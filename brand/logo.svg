@@ -1,6 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
   <title>Utaloom</title>
+  <!-- ponytail: pure SVG CSS keyframes so it animates inside <img> tags without external JS; upgrade to inline SVG + Web Animations API if interactive playback sync is needed -->
+  <style>
+    .u-outer, .u-inner {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 0;
+      transform-origin: 128px 128px;
+    }
+    .u-outer {
+      animation: draw-outer 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    .u-inner {
+      animation: draw-inner 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    @keyframes draw-outer {
+      0% { stroke-dashoffset: 1; transform: scale(0.96); }
+      30%, 72% { stroke-dashoffset: 0; transform: scale(1); }
+      100% { stroke-dashoffset: -1; transform: scale(0.96); }
+    }
+    @keyframes draw-inner {
+      0%, 10% { stroke-dashoffset: 1; opacity: 0.4; }
+      38%, 68% { stroke-dashoffset: 0; opacity: 1; }
+      92%, 100% { stroke-dashoffset: -1; opacity: 0.4; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .u-outer, .u-inner { animation: none; }
+    }
+  </style>
   <rect width="256" height="256" rx="64" fill="#29272c"/>
-  <path d="M64 64v72c0 38 26 64 64 64s64-26 64-64V64" stroke="#f47757" stroke-width="32" stroke-linecap="round"/>
-  <path d="M104 64v68c0 15 9 24 24 24s24-9 24-24V92" stroke="#ffc6a3" stroke-width="16" stroke-linecap="round"/>
+  <path class="u-outer" pathLength="1" d="M64 64v72c0 38 26 64 64 64s64-26 64-64V64" stroke="#f47757" stroke-width="32" stroke-linecap="round"/>
+  <path class="u-inner" pathLength="1" d="M104 64v68c0 15 9 24 24 24s24-9 24-24V92" stroke="#ffc6a3" stroke-width="16" stroke-linecap="round"/>
 </svg>
