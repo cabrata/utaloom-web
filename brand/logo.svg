@@ -3,25 +3,25 @@
   <!-- ponytail: pure SVG CSS keyframes so it animates inside <img> tags without external JS; upgrade to inline SVG + Web Animations API if interactive playback sync is needed -->
   <style>
     .u-outer, .u-inner {
-      stroke-dasharray: 1;
+      stroke-dasharray: 1 2;
       stroke-dashoffset: 0;
       transform-origin: 128px 128px;
     }
     .u-outer {
-      animation: draw-outer 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      animation: weave-outer 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
     }
     .u-inner {
-      animation: draw-inner 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      animation: weave-inner 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
     }
-    @keyframes draw-outer {
-      0% { stroke-dashoffset: 1; transform: scale(0.96); }
-      30%, 72% { stroke-dashoffset: 0; transform: scale(1); }
-      100% { stroke-dashoffset: -1; transform: scale(0.96); }
+    @keyframes weave-outer {
+      0%, 28%, 100% { stroke-dashoffset: 0; transform: scale(1); }
+      58% { stroke-dashoffset: -1.15; transform: scale(0.96); }
+      58.01% { stroke-dashoffset: 1.15; transform: scale(0.96); }
     }
-    @keyframes draw-inner {
-      0%, 10% { stroke-dashoffset: 1; opacity: 0.4; }
-      38%, 68% { stroke-dashoffset: 0; opacity: 1; }
-      92%, 100% { stroke-dashoffset: -1; opacity: 0.4; }
+    @keyframes weave-inner {
+      0%, 22%, 100% { stroke-dashoffset: 0; transform: translateY(0); }
+      52% { stroke-dashoffset: -1.15; transform: translateY(-4px); }
+      52.01% { stroke-dashoffset: 1.15; transform: translateY(4px); }
     }
     @media (prefers-reduced-motion: reduce) {
       .u-outer, .u-inner { animation: none; }
