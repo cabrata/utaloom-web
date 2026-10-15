@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 4173 --bind 127.0.0.1",
-    "test": "node tests/releases.test.mjs"
+    "test": "node tests/releases.test.mjs",
+    "test:responsive": "node tests/responsive.test.mjs"
   }
 }
