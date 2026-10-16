@@ -93,6 +93,13 @@ try {
     try { await Promise.race([loaded, new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Page load timed out')), 15000) })]) }
     finally { clearTimeout(timeout) }
   }
+  const waitFor = async expression => {
+    const deadline = Date.now() + 5000
+    while (!await evaluate(expression)) {
+      assert.ok(Date.now() < deadline, `Timed out waiting for ${expression}`)
+      await evaluate('new Promise(resolve => requestAnimationFrame(resolve))')
+    }
+  }
   const viewport = async (width, height) => {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
     await evaluate('window.scrollTo(0, 0); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
@@ -198,7 +205,80 @@ try {
     await checkLayout(`Downloads ${state}`)
     assert.equal(await evaluate('document.querySelector("#release-state").hidden'), false)
   }
-  console.log('responsive.test.mjs: layout, platform tabs, Android gallery, themes, dialogs and download states passed')
+  await send('Emulation.setTouchEmulationEnabled', { enabled: false })
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true })
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+  await viewport(1440, 900)
+  await open('index.html')
+  await waitFor('document.querySelector(".hero h1").classList.contains("motion-enter")')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero h1")).animationName'), 'motion-enter', 'Hero enters progressively')
+  assert.ok(await evaluate('getComputedStyle(document.querySelector(".hero-actions")).animationDelay !== getComputedStyle(document.querySelector(".hero h1")).animationDelay'), 'Hero entrance is staggered')
+  await evaluate('document.querySelector(".hero-actions a").focus()')
+  assert.equal(await evaluate('document.hasFocus()'), true, 'Keyboard checks run in an active tab')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-actions")).opacity'), '1', 'Keyboard focus never waits for a reveal')
+  await evaluate('document.activeElement.blur(); document.querySelector(".hero-showcase").scrollIntoView({ behavior: "instant", block: "center" })')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero-actions")).opacity'), '1', 'Leaving focus does not replay or hide settled content')
+  assert.equal(await evaluate('document.querySelector(".hero-actions").getAnimations().length'), 0, 'Focused entrance is permanently finished')
+  await waitFor('document.querySelector(".hero-showcase").classList.contains("motion-enter")')
+  const decorations = await evaluate(`(() => {
+    const tags = [...document.querySelectorAll('.floating-tag')].map(element => getComputedStyle(element))
+    const bars = [...document.querySelectorAll('.mini-wave i')].map(element => getComputedStyle(element))
+    return { floats: tags.every(style => style.animationName === 'gentle-float'), bars: bars.every(style => style.animationName === 'equalizer'), staggered: new Set(bars.map(style => style.animationDelay)).size > 1, bounded: [...tags, ...bars].every(style => parseFloat(style.animationDuration) * Number(style.animationIterationCount) + Math.max(0, parseFloat(style.animationDelay)) <= 5), tilt: getComputedStyle(document.querySelector('.hero-phone')).transform !== 'none' }
+  })()`)
+  assert.deepEqual(decorations, { floats: true, bars: true, staggered: true, bounded: true, tilt: true }, 'Decorative motion stays brief and preserves the device tilt')
+  await evaluate('document.querySelector(".feature-card").scrollIntoView({ behavior: "instant", block: "center" })')
+  await waitFor('document.querySelector(".feature-card").classList.contains("motion-enter")')
+  await evaluate('Promise.all(document.querySelector(".feature-card").getAnimations().map(animation => animation.finished))')
+  await evaluate('window.scrollTo({ top: 0, behavior: "instant" })')
+  await evaluate('document.querySelector(".feature-card").scrollIntoView({ behavior: "instant", block: "center" })')
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+  assert.equal(await evaluate('document.querySelector(".feature-card").getAnimations().length'), 0, 'Scrolling back does not replay the reveal')
+  await evaluate('document.querySelector("#preview").scrollIntoView({ behavior: "instant", block: "start" })')
+  await evaluate('document.querySelector("#preview-android-tab").click()')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("#preview-android")).animationName'), 'motion-enter', 'Platform preview transitions in')
+  await evaluate('document.querySelector("#preview-desktop-tab").click(); document.querySelector("[data-gallery-name=Explore]").click()')
+  await waitFor('document.querySelector("#desktop-gallery-image").complete && document.querySelector("#desktop-gallery-image").naturalWidth > 0')
+  assert.ok(await evaluate('document.querySelector("#desktop-gallery-image").getAnimations().length > 0'), 'Loaded gallery screenshots fade in')
+  await evaluate('document.querySelector("#desktop-gallery-image").getAnimations().forEach(animation => animation.pause())')
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
+  await waitFor('document.querySelector("#desktop-gallery-image").getAnimations().length === 0')
+  assert.ok(await evaluate('[...document.querySelectorAll(".floating-tag, .mini-wave i")].every(element => getComputedStyle(element).animationName === "none")'), 'Live reduced-motion changes stop active decorations')
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+  await evaluate('document.querySelector(".hero-phone button").click()')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("dialog")).animationName'), 'dialog-enter', 'Preview dialog animates open')
+  await evaluate('document.querySelector("dialog").close()')
+  await screenshot('motion-desktop')
+
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
+  await open('index.html')
+  assert.equal(await evaluate('getComputedStyle(document.documentElement).scrollBehavior'), 'auto', 'Reduced motion disables smooth scrolling')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero h1")).animationName'), 'none', 'Reduced motion disables reveals')
+  await evaluate('document.querySelector(".hero-showcase").scrollIntoView({ behavior: "instant", block: "center" })')
+  await waitFor('document.querySelector(".hero-showcase").classList.contains("motion-enter")')
+  assert.ok(await evaluate('[...document.querySelectorAll(".floating-tag, .mini-wave i")].every(element => getComputedStyle(element).animationName === "none")'), 'Reduced motion disables decorative motion')
+  await evaluate('document.querySelector("#preview").scrollIntoView({ behavior: "instant", block: "start" })')
+  await evaluate('document.querySelector("#preview-android-tab").click()')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("#preview-android")).animationName'), 'none', 'Reduced motion disables tab transitions')
+  await evaluate('document.querySelector("#preview-desktop-tab").click(); document.querySelector("[data-gallery-name=Search]").click()')
+  await waitFor('document.querySelector("#desktop-gallery-image").complete && document.querySelector("#desktop-gallery-image").naturalWidth > 0')
+  assert.equal(await evaluate('document.querySelector("#desktop-gallery-image").getAnimations().length'), 0, 'Reduced motion disables screenshot fades')
+  await evaluate('document.querySelector(".hero-phone button").click()')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("dialog")).animationName'), 'none', 'Reduced motion disables modal transitions')
+  await evaluate('document.querySelector("dialog").close()')
+
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+  await send('Emulation.setScriptExecutionDisabled', { value: true })
+  try {
+    await open('index.html')
+    assert.ok(await evaluate('[...document.querySelectorAll(".hero h1, .feature-card, .open-source-card")].every(element => getComputedStyle(element).opacity === "1" && element.getClientRects().length > 0)'), 'Content stays visible without JavaScript')
+  } finally { await send('Emulation.setScriptExecutionDisabled', { value: false }) }
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'delete window.IntersectionObserver' })
+  await open('index.html')
+  assert.ok(await evaluate('getComputedStyle(document.querySelector(".hero h1")).opacity === "1" && !document.querySelector(".motion-enter")'), 'Unsupported IntersectionObserver keeps content visible')
+  const previousTheme = await evaluate('document.documentElement.dataset.theme')
+  await evaluate('document.querySelector(".theme-toggle").click()')
+  assert.notEqual(await evaluate('document.documentElement.dataset.theme'), previousTheme, 'Fallback keeps existing interactions working')
+  console.log('responsive.test.mjs: layouts, tabs, gallery, themes, dialogs, download states, motion, reduced motion and progressive fallbacks passed')
 } finally {
   socket?.close()
   if (chrome.exitCode === null) { chrome.kill(); await once(chrome, 'close') }

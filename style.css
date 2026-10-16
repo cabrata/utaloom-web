@@ -499,6 +499,46 @@ body:has(dialog[open]) { overflow: hidden; }
   .platform-line a, .text-link, .footer-main > div a { min-height: 44px; }
   .footer-main > div a { display: inline-flex; align-items: center; gap: 4px; }
 }
+@keyframes motion-enter {
+  from { opacity: 0; translate: 0 18px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes gentle-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+@keyframes equalizer {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(.35); }
+}
+@keyframes backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-enter {
+  from { opacity: 0; scale: .98; }
+  to { opacity: 1; scale: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .motion-enter { animation: motion-enter .65s cubic-bezier(.22, 1, .36, 1) var(--motion-delay, 0ms) backwards; }
+  /* ponytail: decorative motion stops within five seconds, so no persistent playback control is needed. */
+  .hero-showcase.motion-enter .floating-tag, .open-source-card.motion-enter .source-float { animation: gentle-float 2.2s ease-in-out 2; }
+  .hero-showcase.motion-enter .tag-lyrics, .open-source-card.motion-enter .source-heart { animation-delay: .2s; }
+  .hero-showcase.motion-enter .mini-wave i { animation: equalizer .7s ease-in-out 6; }
+  .hero-showcase.motion-enter .mini-wave i:nth-child(2n) { animation-delay: -.2s; }
+  .hero-showcase.motion-enter .mini-wave i:nth-child(3) { animation-delay: -.4s; }
+  .preview-panel:not([hidden]), [data-install-platform]:not([hidden]) { animation: motion-enter .3s ease-out; }
+  .image-dialog[open] { animation: dialog-enter .24s ease-out; }
+  .image-dialog[open]::backdrop { animation: backdrop-enter .2s ease-out; }
+  .segmented-control button, .gallery-chip { transition: background-color .2s, color .2s, border-color .2s; }
+  .button:active { transform: translateY(0) scale(.98); }
+  @media (hover: hover) and (pointer: fine) {
+    .feature-card { transition: transform .25s ease; }
+    .feature-card:hover { transform: translateY(-4px); }
+    .feature-icon { transition: transform .25s ease; }
+    .feature-card:hover .feature-icon { transform: rotate(-6deg); }
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

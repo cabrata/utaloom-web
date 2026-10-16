@@ -1,4 +1,20 @@
 const root = document.documentElement
+// ponytail: one-shot reveals stay visible without JS. Add scroll choreography only if the design needs it.
+if ('IntersectionObserver' in window) {
+  const observer = new IntersectionObserver(entries => {
+    let order = 0
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return
+      observer.unobserve(entry.target)
+      if (entry.target.matches(':focus-within')) return
+      entry.target.style.setProperty('--motion-delay', `${Math.min(order++, 4) * 65}ms`)
+      entry.target.classList.add('motion-enter')
+    })
+  }, { threshold: 0.08 })
+  document.querySelectorAll('.hero > *, .intro-band .container, .section-heading, .feature-card, .preview-tabs, .open-source-card, .final-cta > *, .download-hero > *, .download-layout > *, .download-faq details').forEach(element => observer.observe(element))
+  document.addEventListener('focusin', event => event.target.closest('.motion-enter')?.style.setProperty('animation', 'none'))
+}
+
 const themeButton = document.querySelector('.theme-toggle')
 function setTheme(theme) {
   root.dataset.theme = theme
@@ -34,6 +50,16 @@ document.querySelectorAll('[role="tablist"]').forEach(list => list.addEventListe
   tabs[next].click()
 }))
 
+const galleryImage = document.getElementById('desktop-gallery-image')
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
+reducedMotion.addEventListener('change', event => {
+  if (event.matches) galleryImage?.getAnimations().forEach(animation => animation.cancel())
+})
+galleryImage?.addEventListener('load', () => {
+  if (reducedMotion.matches) return
+  galleryImage.getAnimations().forEach(animation => animation.cancel())
+  galleryImage.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' })
+})
 document.querySelectorAll('[data-gallery-src]').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('[data-gallery-src]').forEach(item => item.setAttribute('aria-pressed', String(item === button)))
   const image = document.getElementById('desktop-gallery-image')
