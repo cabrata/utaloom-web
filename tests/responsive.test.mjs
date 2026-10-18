@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
@@ -9,14 +9,18 @@ import { fileURLToPath } from 'node:url'
 
 // ponytail: installed Chrome + Node 22 WebSocket, no browser dependency. Add a browser matrix when CI needs it.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const baseline = process.env.UI_BASELINE_REF && new Map(['index.html', 'style.css', 'site.js', 'brand/logo.svg', 'brand/logo-mark.svg'].map(file => [file, execFileSync('git', ['show', `${process.env.UI_BASELINE_REF}:${file}`], { cwd: root })]))
 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp' }
 const server = createServer(async (req, res) => {
   try {
-    const path = resolve(root, `.${decodeURIComponent(new URL(req.url, 'http://localhost').pathname)}`)
+    let pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
+    const before = baseline && pathname.startsWith('/__before__/')
+    if (before) pathname = pathname.slice('/__before__'.length)
+    const path = resolve(root, `.${pathname}`)
     if (!path.startsWith(root + sep) && path !== root) { res.writeHead(403).end(); return }
     const file = path === root ? join(root, 'index.html') : path
     res.setHeader('Content-Type', types[extname(file)] || 'application/octet-stream')
-    res.end(await readFile(file))
+    res.end(before && baseline.has(pathname.slice(1)) ? baseline.get(pathname.slice(1)) : await readFile(file))
   } catch { res.writeHead(404).end() }
 })
 server.listen(0, '127.0.0.1')
@@ -75,13 +79,13 @@ try {
   await send('Network.setCacheDisabled', { cacheDisabled: true })
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false })
   // Deterministic API fixtures exercise the real download renderer, including maximum-length filenames.
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+  const fixture = await send('Page.addScriptToEvaluateOnNewDocument', { source: `
     const originalFetch = window.fetch
     window.fetch = (url, options) => {
       if (!String(url).startsWith('https://api.github.com/repos/')) return originalFetch(url, options)
       const mode = new URLSearchParams(location.search).get('test-state')
-      if (mode === 'error') return Promise.resolve(new Response('{}', { status: 429 }))
       const repo = String(url).includes('utaloom-android') ? 'cabrata/utaloom-android' : 'cabrata/utaloom'
+      if (mode === 'error' || (mode === 'desktop-error' && !repo.endsWith('-android'))) return Promise.resolve(new Response('{}', { status: 429 }))
       const names = repo.endsWith('-android') ? ['Utaloom-Android-with-Google-Cast.apk'] : ['utaloom-1.0.5.msi', 'utaloom_1.0.5_amd64.deb', 'utaloom-1.0.5.x86_64.rpm', 'utaloom-' + 'x'.repeat(180) + '.msi']
       return Promise.resolve(new Response(JSON.stringify({ tag_name: 'v1.0.5', draft: false, prerelease: false, published_at: '2026-10-09T01:02:48Z', html_url: 'https://github.com/' + repo + '/releases/tag/v1.0.5', assets: mode === 'empty' ? [] : names.map(name => ({ name, size: 12345678, browser_download_url: 'https://github.com/' + repo + '/releases/download/v1.0.5/' + name })) }), { status: 200 }))
     }
@@ -103,6 +107,16 @@ try {
   const viewport = async (width, height) => {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
     await evaluate('window.scrollTo(0, 0); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+  }
+  const click = async selector => {
+    const point = await evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)})
+      element.scrollIntoView({ behavior: 'instant', block: 'center' })
+      const box = element.getBoundingClientRect()
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+    })()`)
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
   }
   const checkLayout = async label => {
     const result = await evaluate(`(() => {
@@ -213,6 +227,20 @@ try {
   await open('index.html')
   await waitFor('document.querySelector(".hero h1").classList.contains("motion-enter")')
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".hero h1")).animationName'), 'motion-enter', 'Hero enters progressively')
+  const motionSamples = await evaluate(`(() => {
+    const heading = document.querySelector('.hero h1')
+    const animations = heading.getAnimations({ subtree: true })
+    const sample = time => {
+      animations.forEach(animation => { animation.pause(); animation.currentTime = time })
+      return { underline: getComputedStyle(heading.querySelector('.serif-accent'), '::after').scale, spark: getComputedStyle(heading.querySelector('.hero-spark')).rotate }
+    }
+    const start = sample(350)
+    const end = sample(1600)
+    animations.forEach(animation => animation.finish())
+    return { start, end }
+  })()`)
+  assert.notEqual(motionSamples.start.underline, motionSamples.end.underline, 'The editorial underline actually grows, not just declares an animation')
+  assert.notEqual(motionSamples.start.spark, motionSamples.end.spark, 'The music accent actually rotates into place')
   assert.ok(await evaluate('getComputedStyle(document.querySelector(".hero-actions")).animationDelay !== getComputedStyle(document.querySelector(".hero h1")).animationDelay'), 'Hero entrance is staggered')
   await evaluate('document.querySelector(".hero-actions a").focus()')
   assert.equal(await evaluate('document.hasFocus()'), true, 'Keyboard checks run in an active tab')
@@ -299,6 +327,102 @@ try {
   await evaluate('document.documentElement.dataset.theme = "light"')
   await viewport(390, 844)
   await screenshot('polished-mobile')
+
+  // Acceptance: quantify the requested visual improvement against the previous public page.
+  if (baseline) {
+    const measurements = []
+    for (const [width, height] of [[1440, 900], [390, 844]]) {
+      await viewport(width, height)
+      for (const version of ['before', 'after']) {
+        await open(version === 'before' ? '__before__/index.html' : 'index.html')
+        const measured = await evaluate(`(() => {
+          const device = document.querySelector('.hero-showcase > .desktop-device').getBoundingClientRect()
+          const visible = Math.max(0, Math.min(device.bottom, innerHeight) - Math.max(device.top, 0)) / device.height
+          return { screenshotVisiblePercent: Math.round(visible * 100), heroBodyPx: parseFloat(getComputedStyle(document.querySelector('.hero-description')).fontSize), featureBodyPx: parseFloat(getComputedStyle(document.querySelector('.feature-card p')).fontSize), primaryCtaTop: Math.round(document.querySelector('.hero-actions .button').getBoundingClientRect().top) }
+        })()`)
+        measurements.push({ width, version, ...measured })
+        await screenshot(`comparison-${width}-${version}`)
+      }
+    }
+    const desktop = measurements.filter(item => item.width === 1440)
+    const mobile = measurements.filter(item => item.width === 390)
+    assert.ok(desktop[1].screenshotVisiblePercent >= 95 && desktop[1].screenshotVisiblePercent > desktop[0].screenshotVisiblePercent, 'The real desktop product is now fully visible without scrolling')
+    assert.ok(mobile[1].screenshotVisiblePercent >= mobile[0].screenshotVisiblePercent, 'Larger mobile typography does not reduce product visibility')
+    assert.ok(mobile[1].heroBodyPx >= 16 && mobile[1].heroBodyPx > mobile[0].heroBodyPx, 'Mobile body copy is measurably more readable')
+    assert.ok(mobile[1].featureBodyPx >= 15 && mobile[1].featureBodyPx > mobile[0].featureBodyPx, 'Feature descriptions are no longer tiny mobile text')
+    console.log('Visual improvement evidence:', JSON.stringify(measurements))
+  }
+
+  // Acceptance: use actual pointer/keyboard input across page and renderer boundaries.
+  await viewport(1440, 900)
+  await open('index.html')
+  await click('.hero-actions .button-primary')
+  await waitFor('location.pathname.endsWith("download.html") && document.querySelectorAll(".asset-row").length > 0')
+  await click('#windows-tab')
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight' })
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight' })
+  assert.equal(await evaluate('document.querySelector("[data-platform][aria-selected=true]").dataset.platform'), 'linux', 'One keyboard arrow moves exactly one download tab')
+  assert.ok(await evaluate('document.querySelector("[data-install-platform=linux]").hidden === false && location.search.includes("platform=linux")'), 'Platform selection updates instructions and the public URL')
+  await click('#android-tab')
+  assert.ok(await evaluate('[...document.querySelectorAll(".asset-row a")].every(link => link.href.includes("/utaloom-android/releases/download/") && link.href.endsWith(".apk"))'), 'Android downloads use only the Android repository')
+  for (const [key, expected] of [['ArrowRight', 'windows'], ['End', 'android'], ['Home', 'windows']]) {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key })
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key })
+    assert.equal(await evaluate('document.querySelector("[data-platform][aria-selected=true]").dataset.platform'), expected, `${key}: selected tab and keyboard focus stay synchronized`)
+    assert.equal(await evaluate('document.activeElement.dataset.platform'), expected)
+  }
+  await click('.theme-toggle')
+  const chosenTheme = await evaluate('document.documentElement.dataset.theme')
+  await click('.nav .brand')
+  await waitFor('document.querySelector(".hero") !== null && document.readyState === "complete" && !!document.documentElement.dataset.theme')
+  assert.equal(await evaluate('document.documentElement.dataset.theme'), chosenTheme, 'Theme persists across public page navigation')
+  await open('download.html?platform=linux')
+  assert.equal(await evaluate('document.querySelector("[data-platform=linux]").getAttribute("aria-selected")'), 'true', 'Direct links preserve platform selection')
+  await click('.download-faq summary')
+  assert.ok(await evaluate('document.querySelector(".download-faq details").open && document.querySelector(".download-faq details p").getBoundingClientRect().height > 0'), 'FAQ opens through real pointer input')
+  await click('.download-faq summary')
+  assert.equal(await evaluate('document.querySelector(".download-faq details").open'), false, 'FAQ closes through real pointer input')
+
+  for (const page of ['index.html', 'download.html?platform=windows']) {
+    await open(page)
+    const localFailures = await evaluate(`(async () => {
+      const attributes = [...document.querySelectorAll('[src], link[href], use[href], [data-preview-src], [data-gallery-src]')].flatMap(node => ['src', 'href', 'data-preview-src', 'data-gallery-src'].map(name => node.getAttribute(name)).filter(Boolean))
+      const urls = [...new Set(attributes.filter(value => value && !value.startsWith('#')).map(value => new URL(value, location.href).href.split('#')[0]))].filter(value => new URL(value).origin === location.origin)
+      return (await Promise.all(urls.map(async url => ({ url, status: (await fetch(url)).status })))).filter(item => item.status !== 200)
+    })()`)
+    assert.deepEqual(localFailures, [], `${page}: all public image, stylesheet, script and SVG references resolve`)
+    assert.ok(await evaluate('[...document.querySelectorAll("button, a")].filter(node => node.getClientRects().length).every(node => (node.getAttribute("aria-label") || node.textContent).trim().length > 0)'), `${page}: every public control has an accessible name`)
+    assert.ok(await evaluate('[...document.querySelectorAll("svg.icon")].every(icon => icon.getAttribute("aria-hidden") === "true")'), `${page}: decorative icons are excluded from control names`)
+  }
+  await open('index.html')
+  for (const name of ['Home', 'Explore', 'Search', 'Artist & lyrics', 'Queue', 'Fullscreen player']) {
+    await click(`[data-gallery-name="${name}"]`)
+    await evaluate('document.querySelector("#desktop-gallery-image").decode()')
+    assert.ok(await evaluate(`document.querySelector('#desktop-view-name').textContent === ${JSON.stringify(name)} && document.querySelector('#desktop-gallery-open').dataset.previewSrc === document.querySelector('#desktop-gallery-image').src`), `${name}: chip selection updates the actual screenshot and modal source`)
+  }
+  await open('download.html?platform=windows&test-state=desktop-error')
+  assert.ok(await evaluate('!document.querySelector("#retry-releases").hidden && !document.querySelector("#release-state").hidden'), 'API failure exposes both an error and a retry action')
+  await click('#android-tab')
+  assert.ok(await evaluate('document.querySelectorAll(".asset-row").length > 0 && document.querySelector("#release-state").hidden'), 'Desktop failure does not block Android downloads')
+  await click('#windows-tab')
+  await evaluate('history.replaceState(null, "", "download.html?platform=windows")')
+  await click('#retry-releases')
+  await waitFor('document.querySelector("#release-state").hidden && document.querySelectorAll(".asset-row").length > 0')
+  console.log('Public acceptance: CTA navigation, one-step keyboard tabs, deep links, installation instructions, theme persistence, FAQ, assets, accessible names, partial API failure and retry passed')
+
+  // Opt-in network check uses the site's real fetchRelease and renderer, never fixture data.
+  if (process.env.UI_LIVE_RELEASES) {
+    await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: fixture.identifier })
+    await open('download.html?platform=windows')
+    await evaluate('new Promise(resolve => setTimeout(resolve, 11000))')
+    for (const platform of ['windows', 'linux', 'android']) {
+      await click('#' + platform + '-tab')
+      const live = await evaluate(`({ platform: '${platform}', ready: document.querySelector('#release-state').hidden, meta: document.querySelector('#release-meta').textContent, status: document.querySelector('[data-release-status]').textContent, links: [...document.querySelectorAll('.asset-row a')].map(link => link.href) })`)
+      console.log('Live integration:', JSON.stringify(live))
+      assert.equal(live.ready, true, `${platform}: live GitHub API produces real download links`)
+      assert.ok(live.links.length > 0 && live.links.every(url => url.startsWith('https://github.com/cabrata/')), `${platform}: real safe release URLs`)
+    }
+  }
 
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
   await send('Emulation.setScriptExecutionDisabled', { value: true })

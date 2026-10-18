@@ -183,23 +183,16 @@ function init() {
     fetchRelease(repo).then((release) => { results[repo] = { release }; }, (error) => { results[repo] = { error }; }).then(render);
   }
 
-  function select(next, focus) {
+  function select(next) {
     platform = next;
     const url = new URL(location.href);
     url.searchParams.set('platform', next);
     history.replaceState(history.state, '', url);
     render();
-    if (focus) tabs.find((t) => t.dataset.platform === next)?.focus();
   }
 
   for (const tab of tabs) {
     tab.addEventListener('click', () => select(tab.dataset.platform));
-    tab.addEventListener('keydown', (e) => {
-      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-      if (!step) return;
-      e.preventDefault();
-      select(tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length].dataset.platform, true);
-    });
   }
   retry?.addEventListener('click', () => Object.keys(results).filter((r) => results[r].error).forEach(load));
   [DESKTOP, ANDROID].forEach(load);

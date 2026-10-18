@@ -419,15 +419,15 @@ body:has(dialog[open]) { overflow: hidden; }
   .nav-links { font-size: 12px; gap: 0 8px; }
   .nav .button-small { padding: 10px 13px; font-size: 12px; }
   .nav .button-small .icon { width: 14px; height: 14px; }
-  .hero { padding-top: 36px; gap: 32px; }
+  .hero { padding-top: 28px; gap: 24px; }
   .eyebrow-pill { font-size: 11px; padding-inline: 12px; }
-  .hero h1 { font-size: clamp(35px, 10vw, 52px); margin-top: 24px; }
+  .hero h1 { font-size: clamp(35px, 10vw, 52px); margin-top: 20px; }
   .hero-spark { width: 19px; height: 19px; right: -15px; bottom: 10px; }
-  .hero-description { font-size: 16px; line-height: 1.75; margin-top: 22px; max-width: 360px; }
-  .hero-actions { flex-direction: column; gap: 4px; margin-top: 22px; }
+  .hero-description { font-size: 16px; line-height: 1.65; margin-top: 20px; max-width: 360px; }
+  .hero-actions { flex-direction: column; gap: 4px; margin-top: 20px; }
   .hero-actions .button { min-height: 50px; font-size: 13px; padding: 14px 18px; }
   .hero-actions .button-quiet { font-size: 12px; padding-inline: 8px; }
-  .platform-line { gap: 8px; margin-top: 16px; font-size: 11px; }
+  .platform-line { gap: 8px; margin-top: 12px; font-size: 11px; }
   .platform-line > span:first-child, .hero-footnote { display: none; }
   .platform-line a { padding: 8px 11px; }
   .hero-footnote { font-size: 11px; }
