@@ -11,8 +11,22 @@ if ('IntersectionObserver' in window) {
       entry.target.classList.add('motion-enter')
     })
   }, { threshold: 0.08 })
-  document.querySelectorAll('.hero > *, .intro-band .container, .section-heading, .feature-card, .preview-tabs, .open-source-card, .final-cta > *, .download-hero > *, .download-layout > *, .download-faq details').forEach(element => observer.observe(element))
+  document.querySelectorAll('.hero-copy > *, .hero-showcase, .intro-band .container, .section-heading, .feature-card, .preview-tabs, .open-source-card, .final-cta > *, .download-hero > *, .download-layout > *, .download-faq details').forEach(element => observer.observe(element))
   document.addEventListener('focusin', event => event.target.closest('.motion-enter')?.style.setProperty('animation', 'none'))
+}
+
+// Section links follow reading position without a scroll listener or a custom router.
+if ('IntersectionObserver' in window) {
+  const sectionObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return
+      document.querySelectorAll('.nav-links a').forEach(link => {
+        if (link.getAttribute('href') === `#${entry.target.id}`) link.setAttribute('aria-current', 'location')
+        else link.removeAttribute('aria-current')
+      })
+    })
+  }, { rootMargin: '-15% 0px -55% 0px', threshold: 0 })
+  document.querySelectorAll('.hero, #features, #preview, #open-source, .final-cta').forEach(section => sectionObserver.observe(section))
 }
 
 const themeButton = document.querySelector('.theme-toggle')
@@ -21,7 +35,7 @@ function setTheme(theme) {
   themeButton?.setAttribute('aria-label', `Aktifkan tema ${theme === 'dark' ? 'terang' : 'gelap'}`)
   themeButton?.setAttribute('aria-pressed', String(theme === 'dark'))
   themeButton?.querySelector('use').setAttribute('href', `img/icons.svg#${theme === 'dark' ? 'sun' : 'moon'}`)
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#19181c' : '#faf8f5')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#19181c' : '#f8f6f1')
 }
 try { setTheme(localStorage.getItem('utaloom-theme') === 'dark' ? 'dark' : 'light') } catch { setTheme('light') }
 themeButton?.addEventListener('click', () => {
@@ -72,14 +86,17 @@ document.querySelectorAll('[data-gallery-src]').forEach(button => button.addEven
 }))
 
 const dialog = document.getElementById('image-preview')
+let previewOpener
 document.querySelectorAll('[data-preview-src]').forEach(button => button.addEventListener('click', () => {
   if (!dialog) return
+  previewOpener = button
   const image = document.getElementById('image-preview-image')
   image.src = button.dataset.previewSrc
   image.alt = button.dataset.previewTitle
   document.getElementById('image-preview-title').textContent = button.dataset.previewTitle
   dialog.showModal()
 }))
+dialog?.addEventListener('close', () => previewOpener?.focus({ preventScroll: true }))
 document.getElementById('close-preview')?.addEventListener('click', () => dialog.close())
 dialog?.addEventListener('click', event => {
   const box = dialog.getBoundingClientRect()

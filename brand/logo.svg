@@ -8,20 +8,18 @@
       transform-origin: 128px 128px;
     }
     .u-outer {
-      animation: weave-outer 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      animation: weave-outer 3.6s cubic-bezier(0.65, 0, 0.35, 1) 1;
     }
     .u-inner {
-      animation: weave-inner 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      animation: weave-inner 3.6s cubic-bezier(0.65, 0, 0.35, 1) 1;
     }
     @keyframes weave-outer {
       0%, 28%, 100% { stroke-dashoffset: 0; transform: scale(1); }
-      58% { stroke-dashoffset: -1.15; transform: scale(0.96); }
-      58.01% { stroke-dashoffset: 1.15; transform: scale(0.96); }
+      58% { stroke-dashoffset: -.14; transform: scale(0.96); }
     }
     @keyframes weave-inner {
       0%, 22%, 100% { stroke-dashoffset: 0; transform: translateY(0); }
-      52% { stroke-dashoffset: -1.15; transform: translateY(-4px); }
-      52.01% { stroke-dashoffset: 1.15; transform: translateY(4px); }
+      52% { stroke-dashoffset: .18; transform: translateY(-3px); }
     }
     @media (prefers-reduced-motion: reduce) {
       .u-outer, .u-inner { animation: none; }

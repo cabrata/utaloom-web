@@ -130,6 +130,7 @@ try {
   }
   const screenshot = async name => {
     if (!process.env.RESPONSIVE_SCREENSHOTS) return
+    await evaluate(`document.getAnimations().filter(animation => Number.isFinite(animation.effect.getComputedTiming().endTime)).forEach(animation => animation.finish())`)
     await mkdir(process.env.RESPONSIVE_SCREENSHOTS, { recursive: true })
     const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     await writeFile(join(process.env.RESPONSIVE_SCREENSHOTS, `${name}.png`), Buffer.from(data, 'base64'))
@@ -265,6 +266,39 @@ try {
   await evaluate('document.querySelector(".hero-phone button").click()')
   assert.equal(await evaluate('getComputedStyle(document.querySelector("dialog")).animationName'), 'none', 'Reduced motion disables modal transitions')
   await evaluate('document.querySelector("dialog").close()')
+  await waitFor('document.activeElement === document.querySelector(".hero-phone button")')
+
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`document.documentElement.dataset.theme = '${theme}'`)
+    const contrast = await evaluate(`(() => {
+      const rgb = value => value.match(/[\\d.]+/g).map(Number)
+      const blend = (front, back, alpha = front[3] ?? 1) => front.slice(0, 3).map((value, i) => value * alpha + back[i] * (1 - alpha))
+      const luminance = color => color.map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0)
+      return [...document.querySelectorAll('.hero-description, .button-primary, .button-dark, .platform-line a, .feature-card p, .card-kicker, .card-footnote, .section-heading p, .source-copy p, .license-note, .cta-footnote, .footer-bottom')].filter(element => element.getClientRects().length).map(element => {
+        const ancestors = []
+        for (let node = element; node; node = node.parentElement) ancestors.unshift(node)
+        const background = ancestors.reduce((color, node) => blend(rgb(getComputedStyle(node).backgroundColor), color), [255, 255, 255])
+        const style = getComputedStyle(element)
+        const foreground = blend(rgb(style.color), background, Number(style.opacity))
+        const values = [luminance(foreground), luminance(background)].sort((a, b) => a - b)
+        return { selector: element.className || element.tagName, ratio: (values[1] + .05) / (values[0] + .05) }
+      })
+    })()`)
+    assert.deepEqual(contrast.filter(item => item.ratio < 4.5), [], `${theme}: normal text contrast must reach 4.5:1`)
+    await viewport(1440, 900)
+    await screenshot(`polished-hero-${theme}`)
+    for (const section of ['features', 'preview', 'open-source']) {
+      await evaluate(`document.getElementById('${section}').scrollIntoView({ behavior: 'instant', block: 'start' })`)
+      await waitFor(`document.querySelector('.nav-links a[aria-current="location"]')?.getAttribute('href') === '#${section}'`)
+      await checkLayout(`${theme} ${section}`)
+      await screenshot(`polished-${section}-${theme}`)
+    }
+    await evaluate('document.querySelector(".final-cta").scrollIntoView({ behavior: "instant", block: "center" })')
+    await screenshot(`polished-cta-${theme}`)
+  }
+  await evaluate('document.documentElement.dataset.theme = "light"')
+  await viewport(390, 844)
+  await screenshot('polished-mobile')
 
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
   await send('Emulation.setScriptExecutionDisabled', { value: true })
@@ -278,7 +312,7 @@ try {
   const previousTheme = await evaluate('document.documentElement.dataset.theme')
   await evaluate('document.querySelector(".theme-toggle").click()')
   assert.notEqual(await evaluate('document.documentElement.dataset.theme'), previousTheme, 'Fallback keeps existing interactions working')
-  console.log('responsive.test.mjs: layouts, tabs, gallery, themes, dialogs, download states, motion, reduced motion and progressive fallbacks passed')
+  console.log('responsive.test.mjs: layouts, tabs, gallery, themes, contrast, section navigation, dialog focus, download states, motion, reduced motion and progressive fallbacks passed')
 } finally {
   socket?.close()
   if (chrome.exitCode === null) { chrome.kill(); await once(chrome, 'close') }
