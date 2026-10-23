@@ -64,15 +64,15 @@ export async function fetchRelease(repo, { fetch = globalThis.fetch, timeout = 1
       headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(timeout),
     });
   } catch (e) {
-    throw new Error(e?.name === 'TimeoutError' ? 'GitHub terlalu lama merespons (too long).' : 'Gagal terhubung ke GitHub (Network error).');
+    throw new Error(e?.name === 'TimeoutError' ? 'GitHub took too long to respond (timeout).' : 'Could not reach GitHub (network error).');
   }
   if (res.status === 404) return null; // no stable release published yet
   if (res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')) {
-    throw new Error('Batas permintaan GitHub tercapai (rate limit). Coba lagi beberapa menit lagi.');
+    throw new Error('GitHub rate limit reached. Try again in a few minutes.');
   }
-  if (!res.ok) throw new Error(`GitHub mengembalikan error (HTTP ${res.status}).`);
+  if (!res.ok) throw new Error(`GitHub returned an error (HTTP ${res.status}).`);
   let data;
-  try { data = await res.json(); } catch { throw new Error('Respons GitHub tidak bisa dibaca.'); }
+  try { data = await res.json(); } catch { throw new Error('The GitHub response could not be read.'); }
   return parseRelease(data, repo);
 }
 
@@ -80,15 +80,15 @@ export async function fetchRelease(repo, { fetch = globalThis.fetch, timeout = 1
 export function releaseView(platform, results) {
   const { label, repo } = platformSpecs[platform];
   const r = results[repo];
-  if (!r) return { state: 'loading', message: `Mengambil rilis ${label} terbaru…` };
-  if (r.error) return { state: 'error', message: `Download ${label} gagal dimuat. ${r.error.message}` };
-  if (!r.release) return { state: 'empty', message: `Belum ada rilis stabil untuk ${label}.` };
+  if (!r) return { state: 'loading', message: `Fetching the latest ${label} release…` };
+  if (r.error) return { state: 'error', message: `The ${label} download could not be loaded. ${r.error.message}` };
+  if (!r.release) return { state: 'empty', message: `No stable ${label} release yet.` };
   const assets = r.release.assets.filter((a) => a.platform === platform);
   if (!assets.length) {
-    return { state: 'empty', release: r.release, message: `${r.release.tag} belum punya file untuk ${label}. Cek catatan rilis untuk opsi lain.` };
+    return { state: 'empty', release: r.release, message: `${r.release.tag} has no ${label} files yet. Check the release notes for other options.` };
   }
   return { state: 'ready', release: r.release, assets,
-    message: `${assets.length} file ${label} tersedia untuk ${r.release.tag}.` };
+    message: `${assets.length} ${label} file${assets.length === 1 ? '' : 's'} available for ${r.release.tag}.` };
 }
 
 export function choosePlatform(search = '', ua = '') {
@@ -166,13 +166,13 @@ function init() {
     if (meta) {
       const r = view.release;
       const parts = [];
-      if (r) parts.push(`Versi ${r.tag} · `);
+      if (r) parts.push(`Version ${r.tag} · `);
       if (r?.date) {
-        const time = el('time', null, r.date.toLocaleDateString('id-ID', { dateStyle: 'medium' }));
+        const time = el('time', null, r.date.toLocaleDateString('en-US', { dateStyle: 'medium' }));
         time.dateTime = r.date.toISOString();
-        parts.push('Rilis ', time, ' · ');
+        parts.push('Released ', time, ' · ');
       }
-      meta.replaceChildren(...parts, `Sumber: ${repo}`);
+      meta.replaceChildren(...parts, `Source: ${repo}`);
     }
   }
 

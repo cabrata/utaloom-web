@@ -82,7 +82,7 @@ assert.equal((await fetchRelease(A, { fetch: res(200, release(A, 'v1.0.0', ['Uta
 assert.equal(await fetchRelease(A, { fetch: res(404) }), null);
 await assert.rejects(fetchRelease(D, { fetch: res(403, {}, { 'x-ratelimit-remaining': '0' }) }), /rate limit/);
 await assert.rejects(fetchRelease(D, { fetch: res(500) }), /HTTP 500/);
-await assert.rejects(fetchRelease(D, { fetch: async () => { throw new TypeError('offline'); } }), /Network error/);
+await assert.rejects(fetchRelease(D, { fetch: async () => { throw new TypeError('offline'); } }), /network error/);
 const keepAlive = setTimeout(() => {}, 1000); // AbortSignal.timeout timers are unref'd in Node
 await assert.rejects(fetchRelease(D, { fetch: (_, { signal }) => new Promise((_, no) => signal.addEventListener('abort', () => no(signal.reason))), timeout: 5 }), /too long/);
 clearTimeout(keepAlive);

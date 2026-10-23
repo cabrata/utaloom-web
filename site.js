@@ -32,7 +32,7 @@ if ('IntersectionObserver' in window) {
 const themeButton = document.querySelector('.theme-toggle')
 function setTheme(theme) {
   root.dataset.theme = theme
-  themeButton?.setAttribute('aria-label', `Aktifkan tema ${theme === 'dark' ? 'terang' : 'gelap'}`)
+  themeButton?.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`)
   themeButton?.setAttribute('aria-pressed', String(theme === 'dark'))
   themeButton?.querySelector('use').setAttribute('href', `img/icons.svg#${theme === 'dark' ? 'sun' : 'moon'}`)
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#19181c' : '#f8f6f1')
@@ -78,7 +78,7 @@ document.querySelectorAll('[data-gallery-src]').forEach(button => button.addEven
   document.querySelectorAll('[data-gallery-src]').forEach(item => item.setAttribute('aria-pressed', String(item === button)))
   const image = document.getElementById('desktop-gallery-image')
   image.src = button.dataset.gallerySrc
-  image.alt = `Tampilan ${button.dataset.galleryName} Utaloom desktop`
+  image.alt = `Utaloom desktop ${button.dataset.galleryName} view`
   document.getElementById('desktop-view-name').textContent = button.dataset.galleryName
   const opener = document.getElementById('desktop-gallery-open')
   opener.dataset.previewSrc = image.src
