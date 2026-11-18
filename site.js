@@ -32,6 +32,12 @@ if ('IntersectionObserver' in window) {
 const themeButton = document.querySelector('.theme-toggle')
 function setTheme(theme) {
   root.dataset.theme = theme
+  document.querySelectorAll('.hero-showcase [data-theme-light]').forEach(button => {
+    const image = button.querySelector('img')
+    image.src = button.dataset[theme === 'dark' ? 'themeDark' : 'themeLight']
+    image.alt = `${button.dataset.previewTitle} in ${theme} mode`
+    button.dataset.previewSrc = image.src
+  })
   themeButton?.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`)
   themeButton?.setAttribute('aria-pressed', String(theme === 'dark'))
   themeButton?.querySelector('use').setAttribute('href', `img/icons.svg#${theme === 'dark' ? 'sun' : 'moon'}`)

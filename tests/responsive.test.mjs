@@ -182,6 +182,27 @@ try {
   }
   await open('index.html')
   await evaluate('document.querySelector("#preview").scrollIntoView({ behavior: "instant" }); document.querySelector("#desktop-gallery-image").loading = "eager"')
+  for (const theme of ['dark', 'light']) {
+    await evaluate(`if (document.documentElement.dataset.theme !== '${theme}') document.querySelector('.theme-toggle').click()`)
+    const checkHero = async () => {
+      assert.equal(await evaluate(`document.querySelectorAll('.hero-showcase [data-theme-light]').length`), 2)
+      assert.ok(await evaluate(`[...document.querySelectorAll('.hero-showcase [data-theme-light]')].every(button => {
+        const image = button.querySelector('img')
+        return image.getAttribute('src') === button.dataset.${theme === 'dark' ? 'themeDark' : 'themeLight'} && button.dataset.previewSrc === image.src && image.alt.includes('${theme} mode')
+      })`), `${theme}: hero images, preview sources and alt text follow the theme`)
+      await evaluate(`Promise.all([...document.querySelectorAll('.hero-showcase [data-theme-light] img')].map(image => image.decode()))`)
+    }
+    await checkHero()
+    await open('index.html')
+    await checkHero()
+    for (const selector of ['.hero-phone button', '.hero-showcase .desktop-device button']) {
+      await evaluate(`document.querySelector('${selector}').click()`)
+      await evaluate('document.querySelector("#image-preview-image").decode()')
+      assert.equal(await evaluate(`document.querySelector('#image-preview-image').src === document.querySelector('${selector} img').src`), true)
+      await evaluate('document.querySelector("dialog").close()')
+    }
+  }
+  await evaluate('document.querySelector("#desktop-gallery-image").loading = "eager"')
   const galleryNames = await evaluate('[...document.querySelectorAll("[data-gallery-name]")].map(button => button.dataset.galleryName)')
   for (const name of galleryNames) {
     await evaluate(`document.querySelector('[data-gallery-name="${name}"]').click()`)
@@ -202,7 +223,7 @@ try {
   for (const [width, height] of [[320, 640], [568, 320], [1440, 900]]) {
     await viewport(width, height)
     for (const source of ['img/m-player.webp', 'img/d-lyrics-fullscreen.png']) {
-      await evaluate(`document.querySelector('[data-preview-src^="${source}"]').click()`)
+      await evaluate(`document.querySelector('[data-preview-src*="${source}"]').click()`)
       await evaluate('document.querySelector("#image-preview-image").decode()')
       const modal = await evaluate(`(() => {
         const dialog = document.querySelector('dialog')
