@@ -181,10 +181,28 @@ try {
     console.log(`${page}: ${sizes.length} viewport checks passed`)
   }
   await open('index.html')
+  await evaluate('document.querySelector("#preview").scrollIntoView({ behavior: "instant" }); document.querySelector("#desktop-gallery-image").loading = "eager"')
+  const galleryNames = await evaluate('[...document.querySelectorAll("[data-gallery-name]")].map(button => button.dataset.galleryName)')
+  for (const name of galleryNames) {
+    await evaluate(`document.querySelector('[data-gallery-name="${name}"]').click()`)
+    await evaluate('document.querySelector("#desktop-gallery-image").decode()')
+    await evaluate('document.querySelector("#desktop-gallery-open").click()')
+    await evaluate('document.querySelector("#image-preview-image").decode()')
+    assert.equal(await evaluate('document.querySelector("#image-preview-image").src === document.querySelector("#desktop-gallery-image").src'), true)
+    await evaluate('document.querySelector("dialog").close()')
+  }
+  await evaluate('document.querySelector("#preview-android-tab").click()')
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`document.querySelector('[data-preview-src="img/m-home-${theme}.webp"]').click()`)
+    await evaluate('document.querySelector("#image-preview-image").decode()')
+    assert.ok(await evaluate('document.querySelector("#image-preview-image").naturalWidth > 0'))
+    await evaluate('document.querySelector("dialog").close()')
+  }
+  await evaluate('document.querySelector("#preview-desktop-tab").click()')
   for (const [width, height] of [[320, 640], [568, 320], [1440, 900]]) {
     await viewport(width, height)
     for (const source of ['img/m-player.webp', 'img/d-lyrics-fullscreen.png']) {
-      await evaluate(`document.querySelector('[data-preview-src="${source}"]').click()`)
+      await evaluate(`document.querySelector('[data-preview-src^="${source}"]').click()`)
       await evaluate('document.querySelector("#image-preview-image").decode()')
       const modal = await evaluate(`(() => {
         const dialog = document.querySelector('dialog')
@@ -395,7 +413,7 @@ try {
     assert.ok(await evaluate('[...document.querySelectorAll("svg.icon")].every(icon => icon.getAttribute("aria-hidden") === "true")'), `${page}: decorative icons are excluded from control names`)
   }
   await open('index.html')
-  for (const name of ['Home', 'Explore', 'Search', 'Artist & lyrics', 'Queue', 'Fullscreen player']) {
+  for (const name of ['Home · Light', 'Explore', 'Search', 'Home · Dark', 'Player · Dark', 'Player · Light']) {
     await click(`[data-gallery-name="${name}"]`)
     await evaluate('document.querySelector("#desktop-gallery-image").decode()')
     assert.ok(await evaluate(`document.querySelector('#desktop-view-name').textContent === ${JSON.stringify(name)} && document.querySelector('#desktop-gallery-open').dataset.previewSrc === document.querySelector('#desktop-gallery-image').src`), `${name}: chip selection updates the actual screenshot and modal source`)
